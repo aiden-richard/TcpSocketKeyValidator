@@ -34,6 +34,7 @@ class Program
 
             await server.TryAcceptConnection(port);
             await server.ExchangeKeys();
+            await server.ValidateConnection();
         }
         else
         {
@@ -41,6 +42,7 @@ class Program
 
             await client.TryConnect(host, port);
             await client.ExchangeKeys();
+            await client.ValidateConnection();
         }
     }
 }

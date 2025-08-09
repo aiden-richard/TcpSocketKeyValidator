@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using TcpSocketKeyValidator.Crypto;
 
 namespace TcpSocketKeyValidator.Networking;
 
@@ -9,6 +10,7 @@ internal class TcpPeer : IDisposable
     private RSA rsa = RSA.Create();
     private byte[] PrivateKey;
     private byte[] PublicKey;
+    private byte[]? PeerPublicKey;
 
     private Socket? connection;
     private bool IsHost;
@@ -99,10 +101,120 @@ internal class TcpPeer : IDisposable
     {
         byte[] buffer = new byte[1024];
         int received = await connection.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None);
-        byte[] receivedKey = new byte[received];
-        Array.Copy(buffer, receivedKey, received);
-        Console.WriteLine("Public key received from peer.");
-        Console.WriteLine(Convert.ToBase64String(receivedKey) + "\n");
+        PeerPublicKey = new byte[received];
+        Array.Copy(buffer, PeerPublicKey, received);
+        Console.WriteLine("Public key received from peer:");
+        Console.WriteLine(Convert.ToBase64String(PeerPublicKey) + "\n");
+    }
+
+    public async Task<bool> ValidateConnection()
+    {
+        try
+        {
+            if (PeerPublicKey == null)
+            {
+                throw new InvalidOperationException("Peer public key not received");
+            }
+            
+            bool isValid;
+            
+            if (IsHost)
+            {
+                // Host validates peer first, then responds to peer's challenge
+                isValid = await ValidatePeerPublicKey();
+                if (isValid)
+                {
+                    isValid = await RespondToChallenge();
+                }
+            }
+            else
+            {
+                // Client responds to host's challenge first, then validates host
+                isValid = await RespondToChallenge();
+                if (isValid)
+                {
+                    isValid = await ValidatePeerPublicKey();
+                }
+            }
+
+            return isValid;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Peer public key validation failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    public async Task<bool> ValidatePeerPublicKey()
+    {
+        try
+        {
+            if (connection == null)
+            {
+                throw new InvalidOperationException("No connection available");
+            }
+
+            byte[] challenge = new byte[32];
+            using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(challenge);
+            }
+
+            await connection.SendAsync(new ArraySegment<byte>(challenge), SocketFlags.None);
+            Console.WriteLine("Challenge sent to peer.");
+
+            byte[] buffer = new byte[1024];
+            int received = await connection.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None);
+            byte[] signature = new byte[received];
+            Array.Copy(buffer, signature, received);
+            
+            bool isValid = Helpers.VerifySignature(challenge, signature, PeerPublicKey);
+
+            if (isValid)
+            {
+                Console.WriteLine("Peer's signature is valid.");
+            }
+            else
+            {
+                Console.WriteLine("Peer's signature is invalid.");
+            }
+
+            return isValid;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Key validation failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    public async Task<bool> RespondToChallenge()
+    {
+        try
+        {
+            if (connection == null || PeerPublicKey == null)
+            {
+                throw new InvalidOperationException("No connection or peer public key available");
+            }
+
+            byte[] buffer = new byte[32];
+            int received = await connection.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None);
+            byte[] challenge = new byte[received];
+            Array.Copy(buffer, challenge, received);
+            Console.WriteLine("Challenge received from peer.");
+
+            byte[] signature = rsa.SignData(challenge, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            await connection.SendAsync(new ArraySegment<byte>(signature), SocketFlags.None);
+            Console.WriteLine("Signature sent in response to challenge.");
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error responding to challenge: {ex.Message}");
+            return false;
+        }
     }
 
     public void Dispose()
