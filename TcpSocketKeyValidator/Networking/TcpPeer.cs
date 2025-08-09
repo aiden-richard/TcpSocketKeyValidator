@@ -26,9 +26,17 @@ internal class TcpPeer : IDisposable
             throw new InvalidOperationException("No connection established");
         }
 
-        byte[] lengthBytes = BitConverter.GetBytes(message.Length);
-        await connection.SendAsync(new ArraySegment<byte>(lengthBytes), SocketFlags.None);
-        await connection.SendAsync(new ArraySegment<byte>(message), SocketFlags.None);
+        try
+        {
+            byte[] lengthBytes = BitConverter.GetBytes(message.Length);
+            await connection.SendAsync(new ArraySegment<byte>(lengthBytes), SocketFlags.None);
+            await connection.SendAsync(new ArraySegment<byte>(message), SocketFlags.None);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            throw;
+        }
     }
 
     public async Task<byte[]> ReceiveMessage()
@@ -38,10 +46,18 @@ internal class TcpPeer : IDisposable
             throw new InvalidOperationException("No connection established");
         }
 
-        byte[] lengthBytes = await ReadExact(4);
-        int messageLength = BitConverter.ToInt32(lengthBytes, 0);
+        try 
+        {
+            byte[] lengthBytes = await ReadExact(4);
+            int messageLength = BitConverter.ToInt32(lengthBytes, 0);
 
-        return await ReadExact(messageLength);
+            return await ReadExact(messageLength);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            throw;
+        }
     }
 
     private async Task<byte[]> ReadExact(int numBytes)
@@ -114,22 +130,12 @@ internal class TcpPeer : IDisposable
         }
     }
 
-    public async Task<bool> ExchangeKeys()
+    public async Task ExchangeKeys()
     {
-        try
-        {
-            Task sendTask = SendPublicKey();
-            Task receiveTask = ReceivePublicKey();
+        Task sendTask = SendPublicKey();
+        Task receiveTask = ReceivePublicKey();
 
-            await Task.WhenAll(sendTask, receiveTask);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error during key exchange: {ex.Message}");
-            return false;
-        }
+        await Task.WhenAll(sendTask, receiveTask);
     }
 
     private async Task SendPublicKey()
@@ -147,96 +153,72 @@ internal class TcpPeer : IDisposable
 
     public async Task<bool> ValidateConnection()
     {
-        try
+        if (PeerPublicKey == null)
         {
-            if (PeerPublicKey == null)
-            {
-                throw new InvalidOperationException("Peer public key not received");
-            }
-            
-            bool isValid;
-            
-            if (IsHost)
-            {
-                // Host validates peer first, then responds to peer's challenge
-                isValid = await SendChallenge();
-                if (isValid)
-                {
-                    isValid = await RespondToChallenge();
-                }
-            }
-            else
-            {
-                // Client responds to host's challenge first, then validates host
-                isValid = await RespondToChallenge();
-                if (isValid)
-                {
-                    isValid = await SendChallenge();
-                }
-            }
+            throw new InvalidOperationException("Peer public key not received");
+        }
 
-            return isValid;
-        }
-        catch (Exception ex)
+        bool isValid;
+
+        if (IsHost)
         {
-            Console.WriteLine($"Peer public key validation failed: {ex.Message}");
-            return false;
+            // Host validates peer first, then responds to peer's challenge
+            isValid = await SendChallenge();
+            if (isValid)
+            {
+                isValid = await RespondToChallenge();
+            }
         }
+        else
+        {
+            // Client responds to host's challenge first, then validates host
+            isValid = await RespondToChallenge();
+            if (isValid)
+            {
+                isValid = await SendChallenge();
+            }
+        }
+
+        return isValid;
     }
 
     private async Task<bool> SendChallenge()
     {
-        try
+        byte[] challenge = new byte[32];
+        using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
         {
-            byte[] challenge = new byte[32];
-            using (RandomNumberGenerator rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(challenge);
-            }
+            rng.GetBytes(challenge);
+        }
 
-            await SendMessage(challenge);
-            Console.WriteLine("Challenge sent to peer.");
+        await SendMessage(challenge);
+        Console.WriteLine("Challenge sent to peer.");
 
-            byte[] signature = await ReceiveMessage();
+        byte[] signature = await ReceiveMessage();
             
-            bool isValid = Helpers.VerifySignature(challenge, signature, PeerPublicKey);
+        bool isValid = Helpers.VerifySignature(challenge, signature, PeerPublicKey);
 
-            if (isValid)
-            {
-                Console.WriteLine("Peer's signature is valid.");
-            }
-            else
-            {
-                Console.WriteLine("Peer's signature is invalid.");
-            }
-
-            return isValid;
-        }
-        catch (Exception ex)
+        if (isValid)
         {
-            Console.WriteLine($"Key validation failed: {ex.Message}");
-            return false;
+            Console.WriteLine("Peer's signature is valid.");
         }
+        else
+        {
+            Console.WriteLine("Peer's signature is invalid.");
+        }
+
+        return isValid;
     }
 
     private async Task<bool> RespondToChallenge()
     {
-        try
-        {
-            byte[] challenge = await ReceiveMessage();
-            Console.WriteLine("Challenge received from peer.");
+        byte[] challenge = await ReceiveMessage();
+        Console.WriteLine("Challenge received from peer.");
 
-            byte[] signature = rsa.SignData(challenge, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-            await SendMessage(signature);
-            Console.WriteLine("Signature sent in response to challenge.");
+        byte[] signature = rsa.SignData(challenge, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        await SendMessage(signature);
+        Console.WriteLine("Signature sent in response to challenge.");
 
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error responding to challenge: {ex.Message}");
-            return false;
-        }
+        return true;
     }
 
     public void Dispose()
