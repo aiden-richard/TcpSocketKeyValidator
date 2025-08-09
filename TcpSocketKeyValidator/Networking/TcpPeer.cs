@@ -16,12 +16,16 @@ internal class TcpPeer : IDisposable
 
     public TcpPeer()
     {
-        PrivateKey = rsa.ExportRSAPrivateKey();
         PublicKey = rsa.ExportRSAPublicKey();
     }
 
     public async Task SendMessage(byte[] message)
     {
+        if (connection == null)
+        {
+            throw new InvalidOperationException("No connection established");
+        }
+
         byte[] lengthBytes = BitConverter.GetBytes(message.Length);
         await connection.SendAsync(new ArraySegment<byte>(lengthBytes), SocketFlags.None);
         await connection.SendAsync(new ArraySegment<byte>(message), SocketFlags.None);
@@ -29,6 +33,11 @@ internal class TcpPeer : IDisposable
 
     public async Task<byte[]> ReceiveMessage()
     {
+        if (connection == null)
+        {
+            throw new InvalidOperationException("No connection established");
+        }
+
         byte[] lengthBytes = await ReadExact(4);
         int messageLength = BitConverter.ToInt32(lengthBytes, 0);
 
@@ -109,11 +118,6 @@ internal class TcpPeer : IDisposable
     {
         try
         {
-            if (connection == null)
-            {
-                throw new InvalidOperationException("No connection established");
-            }
-
             Task sendTask = SendPublicKey();
             Task receiveTask = ReceivePublicKey();
 
