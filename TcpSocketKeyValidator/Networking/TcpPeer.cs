@@ -209,7 +209,7 @@ internal class TcpPeer : IDisposable
         return isValid;
     }
 
-    private async Task<bool> RespondToChallenge()
+    private async Task RespondToChallenge()
     {
         byte[] challenge = await ReceiveMessage();
         Console.WriteLine("Challenge received from peer.");
@@ -217,8 +217,6 @@ internal class TcpPeer : IDisposable
         byte[] signature = rsa.SignData(challenge, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         await SendMessage(signature);
         Console.WriteLine("Signature sent in response to challenge.");
-
-        return true;
     }
 
     public void Dispose()
