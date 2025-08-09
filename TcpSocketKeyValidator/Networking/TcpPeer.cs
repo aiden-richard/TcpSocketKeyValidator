@@ -8,7 +8,6 @@ namespace TcpSocketKeyValidator.Networking;
 internal class TcpPeer : IDisposable
 {
     private RSA rsa = RSA.Create();
-    private byte[] PrivateKey;
     private byte[] PublicKey;
     private byte[]? PeerPublicKey;
 
