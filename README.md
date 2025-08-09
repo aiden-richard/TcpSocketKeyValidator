@@ -7,4 +7,4 @@ This is a proof of concept app to show cryptographic key exchange in C# using Tc
 - Run without debugging again and start client this time
 
 ### Example from client view
-<img width="1099" height="140" alt="image" src="https://github.com/user-attachments/assets/606d255f-184b-412b-a9bd-443844c52b2b" />
+<img width="1099" height="237" alt="image" src="https://github.com/user-attachments/assets/c7dbf2e6-45b0-4c0d-ad37-e927f06f3f5b" />
