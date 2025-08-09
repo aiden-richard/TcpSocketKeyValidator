@@ -19,70 +19,6 @@ internal class TcpPeer : IDisposable
         PublicKey = rsa.ExportRSAPublicKey();
     }
 
-    public async Task SendMessage(byte[] message)
-    {
-        if (connection == null)
-        {
-            throw new InvalidOperationException("No connection established");
-        }
-
-        try
-        {
-            byte[] lengthBytes = BitConverter.GetBytes(message.Length);
-            await connection.SendAsync(new ArraySegment<byte>(lengthBytes), SocketFlags.None);
-            await connection.SendAsync(new ArraySegment<byte>(message), SocketFlags.None);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-            throw;
-        }
-    }
-
-    public async Task<byte[]> ReceiveMessage()
-    {
-        if (connection == null)
-        {
-            throw new InvalidOperationException("No connection established");
-        }
-
-        try 
-        {
-            byte[] lengthBytes = await ReadExact(4);
-            int messageLength = BitConverter.ToInt32(lengthBytes, 0);
-
-            return await ReadExact(messageLength);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error: {ex.Message}");
-            throw;
-        }
-    }
-
-    private async Task<byte[]> ReadExact(int numBytes)
-    {
-        if (connection == null)
-        {
-            throw new InvalidOperationException("No connection established");
-        }
-
-        byte[] buffer = new byte[numBytes];
-        int bytesRead = 0;
-
-        while (bytesRead < numBytes)
-        {
-            int received = await connection.ReceiveAsync(new ArraySegment<byte>(buffer, bytesRead, numBytes - bytesRead), SocketFlags.None);
-            if (received == 0)
-            {
-                throw new SocketException((int)SocketError.ConnectionReset);
-            }
-            bytesRead += received;
-        }
-
-        return buffer;
-    }
-
     public async Task<bool> TryConnect(string host, int port)
     {
         try
@@ -128,6 +64,70 @@ internal class TcpPeer : IDisposable
             Console.WriteLine($"Failed to accept connection: {ex.Message}");
             return false;
         }
+    }
+
+    public async Task SendMessage(byte[] message)
+    {
+        if (connection == null)
+        {
+            throw new InvalidOperationException("No connection established");
+        }
+
+        try
+        {
+            byte[] lengthBytes = BitConverter.GetBytes(message.Length);
+            await connection.SendAsync(new ArraySegment<byte>(lengthBytes), SocketFlags.None);
+            await connection.SendAsync(new ArraySegment<byte>(message), SocketFlags.None);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            throw;
+        }
+    }
+
+    public async Task<byte[]> ReceiveMessage()
+    {
+        if (connection == null)
+        {
+            throw new InvalidOperationException("No connection established");
+        }
+
+        try
+        {
+            byte[] lengthBytes = await ReadExact(4);
+            int messageLength = BitConverter.ToInt32(lengthBytes, 0);
+
+            return await ReadExact(messageLength);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            throw;
+        }
+    }
+
+    private async Task<byte[]> ReadExact(int numBytes)
+    {
+        if (connection == null)
+        {
+            throw new InvalidOperationException("No connection established");
+        }
+
+        byte[] buffer = new byte[numBytes];
+        int bytesRead = 0;
+
+        while (bytesRead < numBytes)
+        {
+            int received = await connection.ReceiveAsync(new ArraySegment<byte>(buffer, bytesRead, numBytes - bytesRead), SocketFlags.None);
+            if (received == 0)
+            {
+                throw new SocketException((int)SocketError.ConnectionReset);
+            }
+            bytesRead += received;
+        }
+
+        return buffer;
     }
 
     public async Task ExchangeKeys()
