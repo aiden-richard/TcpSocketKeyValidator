@@ -66,7 +66,7 @@ internal class TcpPeer : IDisposable
         }
     }
 
-    public async Task SendMessage(byte[] message)
+    private async Task SendMessage(byte[] message)
     {
         if (connection == null)
         {
@@ -86,7 +86,7 @@ internal class TcpPeer : IDisposable
         }
     }
 
-    public async Task<byte[]> ReceiveMessage()
+    private async Task<byte[]> ReceiveMessage()
     {
         if (connection == null)
         {
