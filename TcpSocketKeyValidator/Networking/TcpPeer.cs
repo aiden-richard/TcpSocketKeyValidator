@@ -121,7 +121,7 @@ internal class TcpPeer : IDisposable
             if (IsHost)
             {
                 // Host validates peer first, then responds to peer's challenge
-                isValid = await ValidatePeerPublicKey();
+                isValid = await SendChallenge();
                 if (isValid)
                 {
                     isValid = await RespondToChallenge();
@@ -133,7 +133,7 @@ internal class TcpPeer : IDisposable
                 isValid = await RespondToChallenge();
                 if (isValid)
                 {
-                    isValid = await ValidatePeerPublicKey();
+                    isValid = await SendChallenge();
                 }
             }
 
@@ -146,7 +146,7 @@ internal class TcpPeer : IDisposable
         }
     }
 
-    public async Task<bool> ValidatePeerPublicKey()
+    private async Task<bool> SendChallenge()
     {
         try
         {
@@ -189,7 +189,7 @@ internal class TcpPeer : IDisposable
         }
     }
 
-    public async Task<bool> RespondToChallenge()
+    private async Task<bool> RespondToChallenge()
     {
         try
         {
